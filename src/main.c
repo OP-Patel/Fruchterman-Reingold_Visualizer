@@ -26,6 +26,17 @@
 #define BUTTON_WIDTH 150
 #define BUTTON_HEIGHT 50
 
+#define MIN_CELL_SIZE 20
+#define MAX_CELL_SIZE 200
+
+
+// Define constants for the clipping region codes
+#define INSIDE 0 // 0000
+#define LEFT   1 // 0001
+#define RIGHT  2 // 0010
+#define BOTTOM 4 // 0100
+#define TOP    8 // 1000
+
 // Node structure
 typedef struct {
     float x, y;   // Position
@@ -55,7 +66,10 @@ void restore_initial_state(Node nodes[]);
 float clamp(float value, float min, float max);
 int is_point_in_rect(int x, int y, SDL_Rect* rect);
 
-void draw_grid(SDL_Renderer *renderer, int cell_size); 
+void draw_grid(SDL_Renderer *renderer, int cell_size, float grid_offset_x, float grid_offset_y); 
+void draw_circle_clipped(SDL_Renderer *renderer, int x, int y, int radius, int left, int top, int right, int bottom);
+void draw_line_clipped(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int left, int top, int right, int bottom);
+int compute_code(int x, int y, int left, int top, int right, int bottom);
 
 int main(int argc, char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -88,6 +102,8 @@ int main(int argc, char *argv[]) {
 
     float temperature = 50.0f; // Initial temperature
     int cell_size = 30;
+    float grid_offset_x = 0.0f; // Horizontal offset for panning
+    float grid_offset_y = 0.0f; // Vertical offset for panning
 
     // Main loop flag
     int running = 1;
@@ -103,6 +119,12 @@ int main(int argc, char *argv[]) {
     // Define the "Generate New Nodes" button
     SDL_Rect buttonRect = {WINDOW_WIDTH - BUTTON_WIDTH - 20, WINDOW_HEIGHT - BUTTON_HEIGHT - 20, BUTTON_WIDTH, BUTTON_HEIGHT};
 
+    int left_bound = BOX_MARGIN;
+    int top_bound = BOX_MARGIN;
+    int right_bound = BOX_MARGIN + BOX_WIDTH;
+    int bottom_bound = BOX_MARGIN + BOX_HEIGHT;
+
+
     while (running) {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
@@ -116,26 +138,69 @@ int main(int argc, char *argv[]) {
                     auto_play = 0; // Stop auto-play if active
                     save_initial_state(nodes); // Save the initial state of the newly generated nodes
                 }
+            } else if (e.type == SDL_MOUSEWHEEL) {
+                // Check if the mouse is within the grid box area
+                int mouse_x, mouse_y;
+                SDL_GetMouseState(&mouse_x, &mouse_y);
+                if (mouse_x >= BOX_MARGIN && mouse_x <= BOX_MARGIN + BOX_WIDTH &&
+                    mouse_y >= BOX_MARGIN && mouse_y <= BOX_MARGIN + BOX_HEIGHT) {
+
+                    float prev_scale_factor = (float)cell_size / 50.0f;
+
+                    // Zoom in or out based on the scroll direction
+                    if (e.wheel.y > 0 && cell_size < MAX_CELL_SIZE) { // Scroll up
+                        cell_size = (int)(cell_size * 1.1f);
+                        if (cell_size > MAX_CELL_SIZE) {
+                            cell_size = MAX_CELL_SIZE;
+                        }
+                    } else if (e.wheel.y < 0 && cell_size > MIN_CELL_SIZE) { // Scroll down
+                        cell_size = (int)(cell_size / 1.1f);
+                        if (cell_size < MIN_CELL_SIZE) {
+                            cell_size = MIN_CELL_SIZE;
+                        }
+                    }
+
+                    float new_scale_factor = (float)cell_size / 50.0f;
+                    float scale_ratio = new_scale_factor / prev_scale_factor;
+
+                    // Adjust grid offset for panning effect
+                    grid_offset_x = mouse_x - scale_ratio * (mouse_x - grid_offset_x);
+                    grid_offset_y = mouse_y - scale_ratio * (mouse_y - grid_offset_y);
+                }
             } else if (e.type == SDL_KEYDOWN) {
+                // Arrow keys for panning the grid
                 switch (e.key.keysym.sym) {
+
                     case SDLK_RIGHT: // Step forward
-                        if (!auto_play && iteration < max_iterations - 1) {
-                            iteration += 1;  // Increment iteration by 1 for exact control
-                            calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
-                            save_node_state(nodes, iteration); // Save the node state after each calculation
-                            iteration_updated_manually = 1;
+                    if (!auto_play && iteration < max_iterations - 1) {
+                        iteration += 1;  // Increment iteration by 1 for exact control
+                        calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
+                        save_node_state(nodes, iteration); // Save the node state after each calculation
+                        iteration_updated_manually = 1;
+                    }
+                    break;
+                case SDLK_LEFT: // Step backward
+                    if (!auto_play && iteration > 0) { // Ensure we don't go below 0
+                        iteration -= 1;  // Decrement iteration by 1 for exact control
+                        if (iteration == 0) {
+                            restore_initial_state(nodes); // Restore initial positions for the first frame
+                        } else {
+                            restore_node_state(nodes, iteration);
                         }
+                        iteration_updated_manually = 1;
+                    }
+                    break;
+                    case SDLK_w:
+                        grid_offset_y += 10;
                         break;
-                    case SDLK_LEFT: // Step backward
-                        if (!auto_play && iteration > 0) { // Ensure we don't go below 0
-                            iteration -= 1;  // Decrement iteration by 1 for exact control
-                            if (iteration == 0) {
-                                restore_initial_state(nodes); // Restore initial positions for the first frame
-                            } else {
-                                restore_node_state(nodes, iteration);
-                            }
-                            iteration_updated_manually = 1;
-                        }
+                    case SDLK_s:
+                        grid_offset_y -= 10;
+                        break;
+                    case SDLK_a:
+                        grid_offset_x += 10;
+                        break;
+                    case SDLK_d:
+                        grid_offset_x -= 10;
                         break;
                     case SDLK_SPACE: // Play/Pause
                         auto_play = !auto_play;
@@ -149,7 +214,7 @@ int main(int argc, char *argv[]) {
         SDL_RenderClear(renderer);
 
         // Draw the background grid
-        draw_grid(renderer, cell_size);
+        draw_grid(renderer, cell_size, grid_offset_x, grid_offset_y);
 
         // Draw thicker bounding box (black outline)
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
@@ -177,18 +242,21 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        // Render nodes (as black circles)
+        // Render nodes (keeping size constant, but adjusting position and clipping)
         for (int i = 0; i < NUM_NODES; i++) {
-            draw_circle(renderer, (int)nodes[i].x, (int)nodes[i].y, NODE_RADIUS);
+            int adjusted_x = grid_offset_x + (nodes[i].x - grid_offset_x) * ((float)cell_size / 50.0f);
+            int adjusted_y = grid_offset_y + (nodes[i].y - grid_offset_y) * ((float)cell_size / 50.0f);
+            draw_circle_clipped(renderer, adjusted_x, adjusted_y, NODE_RADIUS, left_bound, top_bound, right_bound, bottom_bound);
         }
-
-        // Render edges (single line thickness)
+        // Render edges (keeping size constant, but adjusting position and clipping)
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
         for (int i = 0; i < NUM_NODES - 1; i++) {
-            SDL_RenderDrawLine(renderer, (int)nodes[edges[i].from].x, (int)nodes[edges[i].from].y, 
-                                           (int)nodes[edges[i].to].x, (int)nodes[edges[i].to].y);
+            int from_x = grid_offset_x + (nodes[edges[i].from].x - grid_offset_x) * ((float)cell_size / 50.0f);
+            int from_y = grid_offset_y + (nodes[edges[i].from].y - grid_offset_y) * ((float)cell_size / 50.0f);
+            int to_x = grid_offset_x + (nodes[edges[i].to].x - grid_offset_x) * ((float)cell_size / 50.0f);
+            int to_y = grid_offset_y + (nodes[edges[i].to].y - grid_offset_y) * ((float)cell_size / 50.0f);
+            draw_line_clipped(renderer, from_x, from_y, to_x, to_y, left_bound, top_bound, right_bound, bottom_bound);
         }
-
         // Draw "Generate New Nodes" button
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
         SDL_RenderDrawRect(renderer, &buttonRect);
@@ -201,7 +269,6 @@ int main(int argc, char *argv[]) {
             SDL_Delay(FRAME_DELAY); // Using a shorter, more consistent delay for smoother animation
         }
     }
-
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(win);
     SDL_Quit();
@@ -332,16 +399,113 @@ void save_initial_state(Node nodes[]) {
     }
 }
 
-void draw_grid(SDL_Renderer *renderer, int cell_size) {
+void draw_grid(SDL_Renderer *renderer, int cell_size, float grid_offset_x, float grid_offset_y) {
     SDL_SetRenderDrawColor(renderer, 0xDD, 0xDD, 0xDD, 0xFF);  // Light gray color for the grid
 
+    int left = BOX_MARGIN;
+    int top = BOX_MARGIN;
+    int right = BOX_MARGIN + BOX_WIDTH;
+    int bottom = BOX_MARGIN + BOX_HEIGHT;
+
+    // Calculate the starting points considering the grid offset
+    int start_x = (int)(left + grid_offset_x) % cell_size;
+    int start_y = (int)(top + grid_offset_y) % cell_size;
+
     // Draw vertical lines
-    for (int x = BOX_MARGIN; x <= BOX_WIDTH + BOX_MARGIN; x += cell_size) {
-        SDL_RenderDrawLine(renderer, x, BOX_MARGIN, x, BOX_MARGIN + BOX_HEIGHT);
+    for (int x = start_x; x <= right; x += cell_size) {
+        if (x >= left) {
+            SDL_RenderDrawLine(renderer, x, top, x, bottom);
+        }
     }
 
     // Draw horizontal lines
-    for (int y = BOX_MARGIN; y <= BOX_HEIGHT + BOX_MARGIN; y += cell_size) {
-        SDL_RenderDrawLine(renderer, BOX_MARGIN, y, BOX_MARGIN + BOX_WIDTH, y);
+    for (int y = start_y; y <= bottom; y += cell_size) {
+        if (y >= top) {
+            SDL_RenderDrawLine(renderer, left, y, right, y);
+        }
     }
+}
+
+
+
+void draw_circle_clipped(SDL_Renderer *renderer, int x, int y, int radius, int left, int top, int right, int bottom) {
+    if (x - radius < left || x + radius > right || y - radius < top || y + radius > bottom) {
+        return; // Skip drawing the circle if it's outside the bounding box
+    }
+    draw_circle(renderer, x, y, radius);
+}
+
+void draw_line_clipped(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int left, int top, int right, int bottom) {
+    int code1 = compute_code(x1, y1, left, top, right, bottom);
+    int code2 = compute_code(x2, y2, left, top, right, bottom);
+
+    int accept = 0;
+
+    while (1) {
+        if ((code1 == 0) && (code2 == 0)) {
+            // Both endpoints are inside the bounding box
+            accept = 1;
+            break;
+        } else if (code1 & code2) {
+            // Both endpoints are outside the bounding box in the same region
+            break;
+        } else {
+            // Some portion of the line is inside the bounding box
+            int code_out;
+            int x, y;
+
+            // At least one endpoint is outside the bounding box, pick it
+            if (code1 != 0) code_out = code1;
+            else code_out = code2;
+
+            // Find the intersection point
+            if (code_out & TOP) {
+                // Point is above the bounding box
+                x = x1 + (x2 - x1) * (top - y1) / (y2 - y1);
+                y = top;
+            } else if (code_out & BOTTOM) {
+                // Point is below the bounding box
+                x = x1 + (x2 - x1) * (bottom - y1) / (y2 - y1);
+                y = bottom;
+            } else if (code_out & RIGHT) {
+                // Point is to the right of the bounding box
+                y = y1 + (y2 - y1) * (right - x1) / (x2 - x1);
+                x = right;
+            } else if (code_out & LEFT) {
+                // Point is to the left of the bounding box
+                y = y1 + (y2 - y1) * (left - x1) / (x2 - x1);
+                x = left;
+            }
+
+            // Replace the outside point with the intersection point and update the code
+            if (code_out == code1) {
+                x1 = x;
+                y1 = y;
+                code1 = compute_code(x1, y1, left, top, right, bottom);
+            } else {
+                x2 = x;
+                y2 = y;
+                code2 = compute_code(x2, y2, left, top, right, bottom);
+            }
+        }
+    }
+
+    if (accept) {
+        // Draw the line
+        SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
+    }
+}
+
+
+
+// Compute the region code for a point (x, y)
+int compute_code(int x, int y, int left, int top, int right, int bottom) {
+    int code = INSIDE;
+
+    if (x < left)       code |= LEFT;
+    else if (x > right) code |= RIGHT;
+    if (y < top)        code |= BOTTOM;
+    else if (y > bottom) code |= TOP;
+
+    return code;
 }
