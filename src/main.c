@@ -29,7 +29,7 @@
 // Node structure
 typedef struct {
     float x, y;   // Position
-    float dx, dy; // Displacement (force)
+    float dx, dy; // Displacement
 } Node;
 
 // Edge structure (connecting two nodes)
@@ -54,7 +54,8 @@ void save_initial_state(Node nodes[]);
 void restore_initial_state(Node nodes[]);
 float clamp(float value, float min, float max);
 int is_point_in_rect(int x, int y, SDL_Rect* rect);
-void draw_grid(SDL_Renderer *renderer, int grid_size);
+
+void draw_grid(SDL_Renderer *renderer, int cell_size); 
 
 int main(int argc, char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -86,6 +87,7 @@ int main(int argc, char *argv[]) {
     save_initial_state(nodes); // Save the initial state of the first generated nodes
 
     float temperature = 50.0f; // Initial temperature
+    int cell_size = 30;
 
     // Main loop flag
     int running = 1;
@@ -101,101 +103,105 @@ int main(int argc, char *argv[]) {
     // Define the "Generate New Nodes" button
     SDL_Rect buttonRect = {WINDOW_WIDTH - BUTTON_WIDTH - 20, WINDOW_HEIGHT - BUTTON_HEIGHT - 20, BUTTON_WIDTH, BUTTON_HEIGHT};
 
-while (running) {
-    while (SDL_PollEvent(&e) != 0) {
-        if (e.type == SDL_QUIT) {
-            running = 0;
-        } else if (e.type == SDL_MOUSEBUTTONDOWN) {
-            // Check if the "Generate New Nodes" button is clicked
-            if (is_point_in_rect(e.button.x, e.button.y, &buttonRect)) {
-                initialize_nodes(nodes, NUM_NODES); // Generate new nodes
-                iteration = 0; // Reset iteration
-                temperature = 50.0f; // Reset temperature
-                auto_play = 0; // Stop auto-play if active
-                save_initial_state(nodes); // Save the initial state of the newly generated nodes
-            }
-        } else if (e.type == SDL_KEYDOWN) {
-            switch (e.key.keysym.sym) {
-                case SDLK_RIGHT: // Step forward
-                    if (!auto_play && iteration < max_iterations - 1) {
-                        iteration += 1;  // Increment iteration by 1 for exact control
-                        calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
-                        save_node_state(nodes, iteration); // Save the node state after each calculation
-                        iteration_updated_manually = 1;
-                    }
-                    break;
-                case SDLK_LEFT: // Step backward
-                    if (!auto_play && iteration > 0) { // Ensure we don't go below 0
-                        iteration -= 1;  // Decrement iteration by 1 for exact control
-                        if (iteration == 0) {
-                            restore_initial_state(nodes); // Restore initial positions for the first frame
-                        } else {
-                            restore_node_state(nodes, iteration);
+    while (running) {
+        while (SDL_PollEvent(&e) != 0) {
+            if (e.type == SDL_QUIT) {
+                running = 0;
+            } else if (e.type == SDL_MOUSEBUTTONDOWN) {
+                // Check if the "Generate New Nodes" button is clicked
+                if (is_point_in_rect(e.button.x, e.button.y, &buttonRect)) {
+                    initialize_nodes(nodes, NUM_NODES); // Generate new nodes
+                    iteration = 0; // Reset iteration
+                    temperature = 50.0f; // Reset temperature
+                    auto_play = 0; // Stop auto-play if active
+                    save_initial_state(nodes); // Save the initial state of the newly generated nodes
+                }
+            } else if (e.type == SDL_KEYDOWN) {
+                switch (e.key.keysym.sym) {
+                    case SDLK_RIGHT: // Step forward
+                        if (!auto_play && iteration < max_iterations - 1) {
+                            iteration += 1;  // Increment iteration by 1 for exact control
+                            calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
+                            save_node_state(nodes, iteration); // Save the node state after each calculation
+                            iteration_updated_manually = 1;
                         }
-                        iteration_updated_manually = 1;
-                    }
-                    break;
-                case SDLK_SPACE: // Play/Pause
-                    auto_play = !auto_play;
-                    break;
-            }
-        }
-    }
-
-    // Clear the renderer with white background
-    SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
-    SDL_RenderClear(renderer);
-
-    // Draw thicker bounding box (black outline)
-    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
-    for (int i = 0; i < BOX_THICKNESS; i++) {
-        SDL_Rect boundingBox = {BOX_MARGIN - i, BOX_MARGIN - i, BOX_WIDTH + 2 * i, BOX_HEIGHT + 2 * i};
-        SDL_RenderDrawRect(renderer, &boundingBox);
-    }
-
-    // Calculate forces and update node positions only if auto_play is true or manual update occurred
-    if (auto_play || iteration_updated_manually) {
-        if (iteration < ITERATIONS) {
-            calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
-            save_node_state(nodes, iteration); // Save the node state after each calculation
-            
-            if (auto_play) {
-                iteration += 1;  // Increment by 1 for smooth, frame-by-frame animation
-                if (iteration >= max_iterations) {
-                    iteration = max_iterations - 1;
-                    auto_play = 0;  // Stop auto-play when reaching the last frame
+                        break;
+                    case SDLK_LEFT: // Step backward
+                        if (!auto_play && iteration > 0) { // Ensure we don't go below 0
+                            iteration -= 1;  // Decrement iteration by 1 for exact control
+                            if (iteration == 0) {
+                                restore_initial_state(nodes); // Restore initial positions for the first frame
+                            } else {
+                                restore_node_state(nodes, iteration);
+                            }
+                            iteration_updated_manually = 1;
+                        }
+                        break;
+                    case SDLK_SPACE: // Play/Pause
+                        auto_play = !auto_play;
+                        break;
                 }
             }
+        }
 
-            // Reset the manual step flag after updating
-            iteration_updated_manually = 0;
+        // Clear the renderer with white background
+        SDL_SetRenderDrawColor(renderer, 0xFF, 0xFF, 0xFF, 0xFF);
+        SDL_RenderClear(renderer);
+
+        // Draw the background grid
+        draw_grid(renderer, cell_size);
+
+        // Draw thicker bounding box (black outline)
+        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
+        for (int i = 0; i < BOX_THICKNESS; i++) {
+            SDL_Rect boundingBox = {BOX_MARGIN - i, BOX_MARGIN - i, BOX_WIDTH + 2 * i, BOX_HEIGHT + 2 * i};
+            SDL_RenderDrawRect(renderer, &boundingBox);
+        }
+
+        // Calculate forces and update node positions only if auto_play is true or manual update occurred
+        if (auto_play || iteration_updated_manually) {
+            if (iteration < ITERATIONS) {
+                calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
+                save_node_state(nodes, iteration); // Save the node state after each calculation
+                
+                if (auto_play) {
+                    iteration += 1;  // Increment by 1 for smooth, frame-by-frame animation
+                    if (iteration >= max_iterations) {
+                        iteration = max_iterations - 1;
+                        auto_play = 0;  // Stop auto-play when reaching the last frame
+                    }
+                }
+
+                // Reset the manual step flag after updating
+                iteration_updated_manually = 0;
+            }
+        }
+
+        // Render nodes (as black circles)
+        for (int i = 0; i < NUM_NODES; i++) {
+            draw_circle(renderer, (int)nodes[i].x, (int)nodes[i].y, NODE_RADIUS);
+        }
+
+        // Render edges (single line thickness)
+        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
+        for (int i = 0; i < NUM_NODES - 1; i++) {
+            SDL_RenderDrawLine(renderer, (int)nodes[edges[i].from].x, (int)nodes[edges[i].from].y, 
+                                           (int)nodes[edges[i].to].x, (int)nodes[edges[i].to].y);
+        }
+
+        // Draw "Generate New Nodes" button
+        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
+        SDL_RenderDrawRect(renderer, &buttonRect);
+
+        // Update screen
+        SDL_RenderPresent(renderer);
+
+        // Ensure delay only happens when auto_play is true
+        if (auto_play) {
+            SDL_Delay(FRAME_DELAY); // Using a shorter, more consistent delay for smoother animation
         }
     }
 
-    // Render nodes (as black circles)
-    for (int i = 0; i < NUM_NODES; i++) {
-        draw_circle(renderer, (int)nodes[i].x, (int)nodes[i].y, NODE_RADIUS);
-    }
-
-    // Render edges (single line thickness)
-    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
-    for (int i = 0; i < NUM_NODES - 1; i++) {
-        SDL_RenderDrawLine(renderer, (int)nodes[edges[i].from].x, (int)nodes[edges[i].from].y, 
-                                       (int)nodes[edges[i].to].x, (int)nodes[edges[i].to].y);
-    }
-
-    // Draw "Generate New Nodes" button
-    SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
-    SDL_RenderDrawRect(renderer, &buttonRect);
-
-    // Update screen
-    SDL_RenderPresent(renderer);
-
-    // Ensure delay only happens when auto_play is true
-    if (auto_play) {
-        SDL_Delay(FRAME_DELAY); // Using a shorter, more consistent delay for smoother animation
-    }
-}
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(win);
     SDL_Quit();
@@ -314,24 +320,28 @@ int is_point_in_rect(int x, int y, SDL_Rect* rect) {
             y >= rect->y && y <= rect->y + rect->h);
 }
 
-
 void restore_initial_state(Node nodes[]) {
     for (int i = 0; i < NUM_NODES; i++) {
         nodes[i] = initial_node_states[i];
     }
 }
+
 void save_initial_state(Node nodes[]) {
     for (int i = 0; i < NUM_NODES; i++) {
         initial_node_states[i] = nodes[i];
     }
 }
 
-void draw_grid(SDL_Renderer *renderer, int grid_size) {
-    SDL_SetRenderDrawColor(renderer, 0xE0, 0xE0, 0xE0, 0xFF); // Light gray color
-    for (int x = 0; x <= BOX_WIDTH; x += grid_size) {
-        SDL_RenderDrawLine(renderer, BOX_MARGIN + x, BOX_MARGIN, BOX_MARGIN + x, BOX_MARGIN + BOX_HEIGHT);
+void draw_grid(SDL_Renderer *renderer, int cell_size) {
+    SDL_SetRenderDrawColor(renderer, 0xDD, 0xDD, 0xDD, 0xFF);  // Light gray color for the grid
+
+    // Draw vertical lines
+    for (int x = BOX_MARGIN; x <= BOX_WIDTH + BOX_MARGIN; x += cell_size) {
+        SDL_RenderDrawLine(renderer, x, BOX_MARGIN, x, BOX_MARGIN + BOX_HEIGHT);
     }
-    for (int y = 0; y <= BOX_HEIGHT; y += grid_size) {
-        SDL_RenderDrawLine(renderer, BOX_MARGIN, BOX_MARGIN + y, BOX_MARGIN + BOX_WIDTH, BOX_MARGIN + y);
+
+    // Draw horizontal lines
+    for (int y = BOX_MARGIN; y <= BOX_HEIGHT + BOX_MARGIN; y += cell_size) {
+        SDL_RenderDrawLine(renderer, BOX_MARGIN, y, BOX_MARGIN + BOX_WIDTH, y);
     }
 }
