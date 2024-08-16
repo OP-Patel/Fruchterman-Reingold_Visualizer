@@ -1,4 +1,5 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -53,6 +54,7 @@ void save_initial_state(Node nodes[]);
 void restore_initial_state(Node nodes[]);
 float clamp(float value, float min, float max);
 int is_point_in_rect(int x, int y, SDL_Rect* rect);
+void draw_grid(SDL_Renderer *renderer, int grid_size);
 
 int main(int argc, char *argv[]) {
     if (SDL_Init(SDL_INIT_VIDEO) != 0) {
@@ -321,5 +323,15 @@ void restore_initial_state(Node nodes[]) {
 void save_initial_state(Node nodes[]) {
     for (int i = 0; i < NUM_NODES; i++) {
         initial_node_states[i] = nodes[i];
+    }
+}
+
+void draw_grid(SDL_Renderer *renderer, int grid_size) {
+    SDL_SetRenderDrawColor(renderer, 0xE0, 0xE0, 0xE0, 0xFF); // Light gray color
+    for (int x = 0; x <= BOX_WIDTH; x += grid_size) {
+        SDL_RenderDrawLine(renderer, BOX_MARGIN + x, BOX_MARGIN, BOX_MARGIN + x, BOX_MARGIN + BOX_HEIGHT);
+    }
+    for (int y = 0; y <= BOX_HEIGHT; y += grid_size) {
+        SDL_RenderDrawLine(renderer, BOX_MARGIN, BOX_MARGIN + y, BOX_MARGIN + BOX_WIDTH, BOX_MARGIN + y);
     }
 }
