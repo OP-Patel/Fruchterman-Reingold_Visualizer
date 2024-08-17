@@ -116,14 +116,58 @@ int main(int argc, char *argv[]) {
     int iteration = 0;
     int max_iterations = ITERATIONS;
 
-    // Define the "Generate New Nodes" button
-    SDL_Rect buttonRect = {WINDOW_WIDTH - BUTTON_WIDTH - 20, WINDOW_HEIGHT - BUTTON_HEIGHT - 20, BUTTON_WIDTH, BUTTON_HEIGHT};
+    // "Generate Nodes" button
+    SDL_Rect buttonRect = {WINDOW_WIDTH - BUTTON_WIDTH - 50, WINDOW_HEIGHT - BUTTON_HEIGHT - 37, BUTTON_WIDTH, BUTTON_HEIGHT};
 
     int left_bound = BOX_MARGIN;
     int top_bound = BOX_MARGIN;
     int right_bound = BOX_MARGIN + BOX_WIDTH;
     int bottom_bound = BOX_MARGIN + BOX_HEIGHT;
 
+    // Initialization (ttf)
+    if (TTF_Init() == -1) {
+        printf("TTF_Init Error: %s\n", TTF_GetError());
+        SDL_Quit();
+        return 1;
+    }
+
+    // Normal Sized Font
+    TTF_Font *font = TTF_OpenFont("fonts/RobotoMono-VariableFont_wght.ttf", 24);
+    if (font == NULL) {
+        printf("TTF_OpenFont Error: %s\n", TTF_GetError());
+        TTF_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    // Button Sized Font
+    TTF_Font *buttonFont = TTF_OpenFont("fonts/Roboto-Regular.ttf", 24); 
+    if (buttonFont == NULL) {
+        printf("TTF_OpenFont Error: %s\n", TTF_GetError());
+        TTF_Quit();
+        SDL_Quit();
+        return 1;
+    }
+
+    // Frames text
+    SDL_Color textColor = {0, 0, 0, 255};
+    SDL_Surface *textSurface = TTF_RenderText_Solid(font, "Frame: 0", textColor);
+    SDL_Texture *textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+    SDL_FreeSurface(textSurface);
+
+    // Algorithm name text
+    const char *algorithmName = "Fruchterman-Reingold";
+    SDL_Surface *algorithmTextSurface = TTF_RenderText_Solid(font, algorithmName, textColor);
+    SDL_Texture *algorithmTextTexture = SDL_CreateTextureFromSurface(renderer, algorithmTextSurface);
+    int text_width = 0;
+    int text_height = 0;
+    TTF_SizeText(font, algorithmName, &text_width, &text_height);
+    SDL_FreeSurface(algorithmTextSurface);
+
+    // Generate New text
+    SDL_Surface *buttonTextSurface = TTF_RenderText_Solid(buttonFont, "Generate Nodes", textColor);
+    SDL_Texture *buttonTextTexture = SDL_CreateTextureFromSurface(renderer, buttonTextSurface);
+    SDL_FreeSurface(buttonTextSurface);
 
     while (running) {
         while (SDL_PollEvent(&e) != 0) {
@@ -248,7 +292,7 @@ int main(int argc, char *argv[]) {
             int adjusted_y = grid_offset_y + (nodes[i].y - grid_offset_y) * ((float)cell_size / 50.0f);
             draw_circle_clipped(renderer, adjusted_x, adjusted_y, NODE_RADIUS, left_bound, top_bound, right_bound, bottom_bound);
         }
-        // Render edges (keeping size constant, but adjusting position and clipping)
+        // Render edges in the same manner as nodes
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
         for (int i = 0; i < NUM_NODES - 1; i++) {
             int from_x = grid_offset_x + (nodes[edges[i].from].x - grid_offset_x) * ((float)cell_size / 50.0f);
@@ -258,17 +302,61 @@ int main(int argc, char *argv[]) {
             draw_line_clipped(renderer, from_x, from_y, to_x, to_y, left_bound, top_bound, right_bound, bottom_bound);
         }
         // Draw "Generate New Nodes" button
-        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
+        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); 
         SDL_RenderDrawRect(renderer, &buttonRect);
 
-        // Update screen
+        
+        // Update frame text
+        char frameText[50];
+        sprintf(frameText, "Frame: %d", iteration);
+        textSurface = TTF_RenderText_Solid(font, frameText, textColor);
+        textTexture = SDL_CreateTextureFromSurface(renderer, textSurface);
+        SDL_FreeSurface(textSurface);
+
+        SDL_Rect textRect = {10, 10, 100, 30}; 
+        SDL_RenderCopy(renderer, textTexture, NULL, &textRect);
+
+        // Position the algorithm name centered above the bounding box
+        SDL_Rect algorithmTextRect = {
+            BOX_MARGIN + (BOX_WIDTH - text_width) / 2,
+            BOX_MARGIN - text_height - 10,
+            text_width,
+            text_height
+        };
+        SDL_RenderCopy(renderer, algorithmTextTexture, NULL, &algorithmTextRect);
+
+        int text_width = 0;
+        int text_height = 0;
+        TTF_SizeText(font, "Generate New", &text_width, &text_height);
+
+        // Make sure the text fits within the button
+        if (text_width > buttonRect.w || text_height > buttonRect.h) {
+            buttonRect.w = text_width + 10;  // Adding some padding
+            buttonRect.h = text_height + 10; // Adding some padding
+        }
+
+        // Now render the text centered in the button
+        SDL_Rect buttonTextRect = {
+            buttonRect.x + (buttonRect.w - text_width) / 2,  // Center horizontally
+            buttonRect.y + (buttonRect.h - text_height) / 2,  // Center vertically
+            text_width,
+            text_height
+        };
+
+        SDL_RenderCopy(renderer, buttonTextTexture, NULL, &buttonTextRect);
+
+        // Update display
         SDL_RenderPresent(renderer);
+        SDL_DestroyTexture(textTexture);
 
         // Ensure delay only happens when auto_play is true
         if (auto_play) {
             SDL_Delay(FRAME_DELAY); // Using a shorter, more consistent delay for smoother animation
         }
     }
+
+    SDL_DestroyTexture(textTexture);  
+    SDL_DestroyTexture(algorithmTextTexture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(win);
     SDL_Quit();
@@ -426,8 +514,6 @@ void draw_grid(SDL_Renderer *renderer, int cell_size, float grid_offset_x, float
     }
 }
 
-
-
 void draw_circle_clipped(SDL_Renderer *renderer, int x, int y, int radius, int left, int top, int right, int bottom) {
     if (x - radius < left || x + radius > right || y - radius < top || y + radius > bottom) {
         return; // Skip drawing the circle if it's outside the bounding box
@@ -495,8 +581,6 @@ void draw_line_clipped(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, i
         SDL_RenderDrawLine(renderer, x1, y1, x2, y2);
     }
 }
-
-
 
 // Compute the region code for a point (x, y)
 int compute_code(int x, int y, int left, int top, int right, int bottom) {
