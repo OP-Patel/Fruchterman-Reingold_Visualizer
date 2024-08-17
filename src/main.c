@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+#include <time.h>
 
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 960
@@ -15,12 +16,12 @@
 #define BOX_WIDTH (WINDOW_WIDTH - 2 * BOX_MARGIN - ADJUSTMENTS_COLUMN_WIDTH)
 #define BOX_HEIGHT (WINDOW_HEIGHT - 2 * BOX_MARGIN)
 
-#define NUM_NODES 10
-#define NODE_RADIUS 10 // Radius for the circular nodes
+#define NUM_NODES 21
+#define NODE_RADIUS 7 // Radius for the circular nodes
 
-#define ITERATIONS 1000
-#define COOLING_FACTOR 0.95 // Cooling factor for reducing temperature
-#define FRAME_STEP_SIZE 5 // Smaller step size for smoother movement
+#define ITERATIONS 201 // Max frames before end: og 1000
+#define COOLING_FACTOR 0.95 // Cooling factor for reducing temperature: og .95
+#define FRAME_STEP_SIZE 3 // Smaller step size for smoother movement: og 5
 #define FRAME_DELAY 16 // Approx 60 FPS (1000ms / 60 frames = ~16ms per frame)
 
 #define BUTTON_WIDTH 150
@@ -94,13 +95,13 @@ int main(int argc, char *argv[]) {
 
     // Initialize nodes and edges
     Node nodes[NUM_NODES];
-    Edge edges[NUM_NODES - 1];
+    Edge edges[42]; // Adjust number of edges
 
     initialize_nodes(nodes, NUM_NODES);
-    initialize_edges(edges, NUM_NODES - 1);
+    initialize_edges(edges, 42);
     save_initial_state(nodes); // Save the initial state of the first generated nodes
 
-    float temperature = 50.0f; // Initial temperature
+    float temperature = 40.0f; // Initial temperature: og 50.0f 
     int cell_size = 30;
     float grid_offset_x = 0.0f; // Horizontal offset for panning
     float grid_offset_y = 0.0f; // Vertical offset for panning
@@ -218,7 +219,7 @@ int main(int argc, char *argv[]) {
                     case SDLK_RIGHT: // Step forward
                     if (!auto_play && iteration < max_iterations - 1) {
                         iteration += 1;  // Increment iteration by 1 for exact control
-                        calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
+                        calculate_forces(nodes, edges, NUM_NODES, 42, temperature, iteration);
                         save_node_state(nodes, iteration); // Save the node state after each calculation
                         iteration_updated_manually = 1;
                     }
@@ -270,7 +271,7 @@ int main(int argc, char *argv[]) {
         // Calculate forces and update node positions only if auto_play is true or manual update occurred
         if (auto_play || iteration_updated_manually) {
             if (iteration < ITERATIONS) {
-                calculate_forces(nodes, edges, NUM_NODES, NUM_NODES - 1, temperature, iteration);
+                calculate_forces(nodes, edges, NUM_NODES, 42, temperature, iteration);
                 save_node_state(nodes, iteration); // Save the node state after each calculation
                 
                 if (auto_play) {
@@ -294,7 +295,7 @@ int main(int argc, char *argv[]) {
         }
         // Render edges in the same manner as nodes
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
-        for (int i = 0; i < NUM_NODES - 1; i++) {
+        for (int i = 0; i < 42; i++) {
             int from_x = grid_offset_x + (nodes[edges[i].from].x - grid_offset_x) * ((float)cell_size / 50.0f);
             int from_y = grid_offset_y + (nodes[edges[i].from].y - grid_offset_y) * ((float)cell_size / 50.0f);
             int to_x = grid_offset_x + (nodes[edges[i].to].x - grid_offset_x) * ((float)cell_size / 50.0f);
@@ -366,6 +367,8 @@ int main(int argc, char *argv[]) {
 
 // Initialize nodes with random positions within the bounding box
 void initialize_nodes(Node nodes[], int num_nodes) {
+    srand(time(NULL)); 
+
     for (int i = 0; i < num_nodes; i++) {
         nodes[i].x = (float)(rand() % BOX_WIDTH + BOX_MARGIN);
         nodes[i].y = (float)(rand() % BOX_HEIGHT + BOX_MARGIN);
@@ -374,12 +377,49 @@ void initialize_nodes(Node nodes[], int num_nodes) {
     }
 }
 
-// Initialize edges connecting nodes in a simple chain (for now)
 void initialize_edges(Edge edges[], int num_edges) {
-    for (int i = 0; i < num_edges; i++) {
-        edges[i].from = i;
-        edges[i].to = i + 1;
-    }
+    edges[0] = (Edge){0, 1};  // a -- b
+    edges[1] = (Edge){0, 2};  // a -- c
+    edges[2] = (Edge){0, 3};  // a -- d
+    edges[3] = (Edge){1, 2};  // b -- c
+    edges[4] = (Edge){1, 4};  // b -- e
+    edges[5] = (Edge){2, 4};  // c -- e
+    edges[6] = (Edge){2, 5};  // c -- f
+    edges[7] = (Edge){3, 5};  // d -- f
+    edges[8] = (Edge){3, 6};  // d -- g
+    edges[9] = (Edge){4, 7};  // e -- h
+    edges[10] = (Edge){5, 7}; // f -- h
+    edges[11] = (Edge){5, 8}; // f -- i
+    edges[12] = (Edge){5, 9}; // f -- j
+    edges[13] = (Edge){5, 6}; // f -- g
+    edges[14] = (Edge){6, 10}; // g -- k
+    edges[15] = (Edge){7, 14}; // h -- o
+    edges[16] = (Edge){7, 11}; // h -- l
+    edges[17] = (Edge){8, 11}; // i -- l
+    edges[18] = (Edge){8, 12}; // i -- m
+    edges[19] = (Edge){8, 9};  // i -- j
+    edges[20] = (Edge){9, 12}; // j -- m
+    edges[21] = (Edge){9, 13}; // j -- n
+    edges[22] = (Edge){9, 10}; // j -- k
+    edges[23] = (Edge){10, 13}; // k -- n
+    edges[24] = (Edge){10, 17}; // k -- r
+    edges[25] = (Edge){11, 14}; // l -- o
+    edges[26] = (Edge){11, 12}; // l -- m
+    edges[27] = (Edge){12, 14}; // m -- o
+    edges[28] = (Edge){12, 15}; // m -- p
+    edges[29] = (Edge){12, 13}; // m -- n
+    edges[30] = (Edge){13, 16}; // n -- q
+    edges[31] = (Edge){13, 17}; // n -- r
+    edges[32] = (Edge){14, 18}; // o -- s
+    edges[33] = (Edge){14, 15}; // o -- p
+    edges[34] = (Edge){15, 18}; // p -- s
+    edges[35] = (Edge){15, 19}; // p -- t
+    edges[36] = (Edge){15, 16}; // p -- q
+    edges[37] = (Edge){16, 19}; // q -- t
+    edges[38] = (Edge){16, 17}; // q -- r
+    edges[39] = (Edge){17, 19}; // r -- t
+    edges[40] = (Edge){18, 20}; // s -- z
+    edges[41] = (Edge){19, 20}; // t -- z
 }
 
 // Function to save the current node state
@@ -447,6 +487,7 @@ void calculate_forces(Node nodes[], Edge edges[], int num_nodes, int num_edges, 
         nodes[i].x = clamp(nodes[i].x, BOX_MARGIN, BOX_MARGIN + BOX_WIDTH);
         nodes[i].y = clamp(nodes[i].y, BOX_MARGIN, BOX_MARGIN + BOX_HEIGHT);
     }
+    
 }
 
 // Function to draw a filled circle
