@@ -11,13 +11,13 @@
 #define BOX_MARGIN 50 // Margin for the bounding box
 #define BOX_THICKNESS 5 // Thickness of the bounding box
 
-#define ADJUSTMENTS_COLUMN_WIDTH 200 // Width for the adjustments column
+#define ADJUSTMENTS_COLUMN_WIDTH 200 // Width for the button column
 
 #define BOX_WIDTH (WINDOW_WIDTH - 2 * BOX_MARGIN - ADJUSTMENTS_COLUMN_WIDTH)
 #define BOX_HEIGHT (WINDOW_HEIGHT - 2 * BOX_MARGIN)
 
 #define NUM_NODES 21
-#define NODE_RADIUS 7 // Radius for the circular nodes
+#define NODE_RADIUS 7 // Node radius
 
 #define ITERATIONS 201 // Max frames before end: og 1000
 #define COOLING_FACTOR 0.95 // Cooling factor for reducing temperature: og .95
@@ -31,7 +31,7 @@
 #define MAX_CELL_SIZE 200
 
 
-// Define constants for the clipping region codes
+// Constants for the clipping region codes
 #define INSIDE 0 // 0000
 #define LEFT   1 // 0001
 #define RIGHT  2 // 0010
@@ -44,7 +44,7 @@ typedef struct {
     float dx, dy; // Displacement
 } Node;
 
-// Edge structure (connecting two nodes)
+// Edge structure
 typedef struct {
     int from;
     int to;
@@ -66,7 +66,6 @@ void save_initial_state(Node nodes[]);
 void restore_initial_state(Node nodes[]);
 float clamp(float value, float min, float max);
 int is_point_in_rect(int x, int y, SDL_Rect* rect);
-
 void draw_grid(SDL_Renderer *renderer, int cell_size, float grid_offset_x, float grid_offset_y); 
 void draw_circle_clipped(SDL_Renderer *renderer, int x, int y, int radius, int left, int top, int right, int bottom);
 void draw_line_clipped(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int left, int top, int right, int bottom);
@@ -95,11 +94,11 @@ int main(int argc, char *argv[]) {
 
     // Initialize nodes and edges
     Node nodes[NUM_NODES];
-    Edge edges[42]; // Adjust number of edges
+    Edge edges[42];
 
     initialize_nodes(nodes, NUM_NODES);
     initialize_edges(edges, 42);
-    save_initial_state(nodes); // Save the initial state of the first generated nodes
+    save_initial_state(nodes); // Save the initial state
 
     float temperature = 40.0f; // Initial temperature: og 50.0f 
     int cell_size = 30;
@@ -175,13 +174,13 @@ int main(int argc, char *argv[]) {
             if (e.type == SDL_QUIT) {
                 running = 0;
             } else if (e.type == SDL_MOUSEBUTTONDOWN) {
-                // Check if the "Generate New Nodes" button is clicked
+                // Check if the "Generate Nodes" button is clicked
                 if (is_point_in_rect(e.button.x, e.button.y, &buttonRect)) {
                     initialize_nodes(nodes, NUM_NODES); // Generate new nodes
-                    iteration = 0; // Reset iteration
-                    temperature = 50.0f; // Reset temperature
+                    iteration = 0; // Reset
+                    temperature = 50.0f; // Reset
                     auto_play = 0; // Stop auto-play if active
-                    save_initial_state(nodes); // Save the initial state of the newly generated nodes
+                    save_initial_state(nodes); // Save the initial state
                 }
             } else if (e.type == SDL_MOUSEWHEEL) {
                 // Check if the mouse is within the grid box area
@@ -208,7 +207,7 @@ int main(int argc, char *argv[]) {
                     float new_scale_factor = (float)cell_size / 50.0f;
                     float scale_ratio = new_scale_factor / prev_scale_factor;
 
-                    // Adjust grid offset for panning effect
+                    // Adjust grid offset
                     grid_offset_x = mouse_x - scale_ratio * (mouse_x - grid_offset_x);
                     grid_offset_y = mouse_y - scale_ratio * (mouse_y - grid_offset_y);
                 }
@@ -218,17 +217,17 @@ int main(int argc, char *argv[]) {
 
                     case SDLK_RIGHT: // Step forward
                     if (!auto_play && iteration < max_iterations - 1) {
-                        iteration += 1;  // Increment iteration by 1 for exact control
+                        iteration += 1;  // Increment iteration by 1
                         calculate_forces(nodes, edges, NUM_NODES, 42, temperature, iteration);
                         save_node_state(nodes, iteration); // Save the node state after each calculation
                         iteration_updated_manually = 1;
                     }
                     break;
                 case SDLK_LEFT: // Step backward
-                    if (!auto_play && iteration > 0) { // Ensure we don't go below 0
-                        iteration -= 1;  // Decrement iteration by 1 for exact control
+                    if (!auto_play && iteration > 0) { // Ensure it doesn't go <0
+                        iteration -= 1;  // Decrement iteration by 1
                         if (iteration == 0) {
-                            restore_initial_state(nodes); // Restore initial positions for the first frame
+                            restore_initial_state(nodes); // Restore initial positions
                         } else {
                             restore_node_state(nodes, iteration);
                         }
@@ -268,17 +267,17 @@ int main(int argc, char *argv[]) {
             SDL_RenderDrawRect(renderer, &boundingBox);
         }
 
-        // Calculate forces and update node positions only if auto_play is true or manual update occurred
+        // Calculate forces and update node positions only if auto_play is true
         if (auto_play || iteration_updated_manually) {
             if (iteration < ITERATIONS) {
                 calculate_forces(nodes, edges, NUM_NODES, 42, temperature, iteration);
                 save_node_state(nodes, iteration); // Save the node state after each calculation
                 
                 if (auto_play) {
-                    iteration += 1;  // Increment by 1 for smooth, frame-by-frame animation
+                    iteration += 1;  // Increment by 1 for frame-by-frame animation
                     if (iteration >= max_iterations) {
                         iteration = max_iterations - 1;
-                        auto_play = 0;  // Stop auto-play when reaching the last frame
+                        auto_play = 0;
                     }
                 }
 
@@ -294,7 +293,7 @@ int main(int argc, char *argv[]) {
             draw_circle_clipped(renderer, adjusted_x, adjusted_y, NODE_RADIUS, left_bound, top_bound, right_bound, bottom_bound);
         }
         // Render edges in the same manner as nodes
-        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black color
+        SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); // Black
         for (int i = 0; i < 42; i++) {
             int from_x = grid_offset_x + (nodes[edges[i].from].x - grid_offset_x) * ((float)cell_size / 50.0f);
             int from_y = grid_offset_y + (nodes[edges[i].from].y - grid_offset_y) * ((float)cell_size / 50.0f);
@@ -302,7 +301,8 @@ int main(int argc, char *argv[]) {
             int to_y = grid_offset_y + (nodes[edges[i].to].y - grid_offset_y) * ((float)cell_size / 50.0f);
             draw_line_clipped(renderer, from_x, from_y, to_x, to_y, left_bound, top_bound, right_bound, bottom_bound);
         }
-        // Draw "Generate New Nodes" button
+
+        // Render "Generate Nodes" button
         SDL_SetRenderDrawColor(renderer, 0x00, 0x00, 0x00, 0xFF); 
         SDL_RenderDrawRect(renderer, &buttonRect);
 
@@ -332,14 +332,14 @@ int main(int argc, char *argv[]) {
 
         // Make sure the text fits within the button
         if (text_width > buttonRect.w || text_height > buttonRect.h) {
-            buttonRect.w = text_width + 10;  // Adding some padding
-            buttonRect.h = text_height + 10; // Adding some padding
+            buttonRect.w = text_width + 10;  // Padding
+            buttonRect.h = text_height + 10;  
         }
 
-        // Now render the text centered in the button
+        // Render button text (keeping it centered)
         SDL_Rect buttonTextRect = {
-            buttonRect.x + (buttonRect.w - text_width) / 2,  // Center horizontally
-            buttonRect.y + (buttonRect.h - text_height) / 2,  // Center vertically
+            buttonRect.x + (buttonRect.w - text_width) / 2,  
+            buttonRect.y + (buttonRect.h - text_height) / 2,  
             text_width,
             text_height
         };
@@ -352,7 +352,7 @@ int main(int argc, char *argv[]) {
 
         // Ensure delay only happens when auto_play is true
         if (auto_play) {
-            SDL_Delay(FRAME_DELAY); // Using a shorter, more consistent delay for smoother animation
+            SDL_Delay(FRAME_DELAY);
         }
     }
 
@@ -377,7 +377,7 @@ void initialize_nodes(Node nodes[], int num_nodes) {
     }
 }
 
-void initialize_edges(Edge edges[], int num_edges) {
+void initialize_edges(Edge edges[], int num_edges) { //currently hardcoded
     edges[0] = (Edge){0, 1};  // a -- b
     edges[1] = (Edge){0, 2};  // a -- c
     edges[2] = (Edge){0, 3};  // a -- d
@@ -478,7 +478,7 @@ void calculate_forces(Node nodes[], Edge edges[], int num_nodes, int num_edges, 
         }
     }
 
-    // Update positions based on forces and limit movement
+    // Update positions based on forces
     for (int i = 0; i < num_nodes; i++) {
         nodes[i].x += clamp(nodes[i].dx, -temperature, temperature);
         nodes[i].y += clamp(nodes[i].dy, -temperature, temperature);
@@ -494,8 +494,8 @@ void calculate_forces(Node nodes[], Edge edges[], int num_nodes, int num_edges, 
 void draw_circle(SDL_Renderer *renderer, int x, int y, int radius) {
     for (int w = 0; w < radius * 2; w++) {
         for (int h = 0; h < radius * 2; h++) {
-            int dx = radius - w; // horizontal offset
-            int dy = radius - h; // vertical offset
+            int dx = radius - w; 
+            int dy = radius - h; 
             if ((dx * dx + dy * dy) <= (radius * radius)) {
                 SDL_RenderDrawPoint(renderer, x + dx, y + dy);
             }
@@ -529,7 +529,7 @@ void save_initial_state(Node nodes[]) {
 }
 
 void draw_grid(SDL_Renderer *renderer, int cell_size, float grid_offset_x, float grid_offset_y) {
-    SDL_SetRenderDrawColor(renderer, 0xDD, 0xDD, 0xDD, 0xFF);  // Light gray color for the grid
+    SDL_SetRenderDrawColor(renderer, 0xDD, 0xDD, 0xDD, 0xFF);  // Light gray
 
     int left = BOX_MARGIN;
     int top = BOX_MARGIN;
@@ -565,9 +565,7 @@ void draw_circle_clipped(SDL_Renderer *renderer, int x, int y, int radius, int l
 void draw_line_clipped(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, int left, int top, int right, int bottom) {
     int code1 = compute_code(x1, y1, left, top, right, bottom);
     int code2 = compute_code(x2, y2, left, top, right, bottom);
-
     int accept = 0;
-
     while (1) {
         if ((code1 == 0) && (code2 == 0)) {
             // Both endpoints are inside the bounding box
@@ -587,24 +585,23 @@ void draw_line_clipped(SDL_Renderer *renderer, int x1, int y1, int x2, int y2, i
 
             // Find the intersection point
             if (code_out & TOP) {
-                // Point is above the bounding box
+                // Up
                 x = x1 + (x2 - x1) * (top - y1) / (y2 - y1);
                 y = top;
             } else if (code_out & BOTTOM) {
-                // Point is below the bounding box
+                // Down
                 x = x1 + (x2 - x1) * (bottom - y1) / (y2 - y1);
                 y = bottom;
             } else if (code_out & RIGHT) {
-                // Point is to the right of the bounding box
+                // Right
                 y = y1 + (y2 - y1) * (right - x1) / (x2 - x1);
                 x = right;
             } else if (code_out & LEFT) {
-                // Point is to the left of the bounding box
+                // Left
                 y = y1 + (y2 - y1) * (left - x1) / (x2 - x1);
                 x = left;
             }
-
-            // Replace the outside point with the intersection point and update the code
+            // Replace outside point with intersection point and update the code
             if (code_out == code1) {
                 x1 = x;
                 y1 = y;
